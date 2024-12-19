@@ -4,13 +4,13 @@
       borderless
       dense
       rounded
-      v-model="usuario.status"
+      v-model="userStatus"
       :options="statusOptions"
       map-options
       emit-value
-      @input="updateStatus"
+      @update:model-value="updateStatus"
     >
-      <template v-slot:selected>
+      <template #selected>
         <div class="row full-width justify-center">
           <q-chip
             color="grey-3"
@@ -18,57 +18,86 @@
             class="q-my-none q-ml-sm q-mr-none q-py-md"
           >
             <q-avatar
-              :color="cStatus.color"
+              :color="currentStatus.color"
               text-color="white"
               size="40px"
-              :icon="cStatus.icon"
+              :icon="currentStatus.icon"
               rounded
             />
-            {{ cStatus.label }}
+            {{ currentStatus.label }}
           </q-chip>
         </div>
       </template>
-
     </q-select>
-
   </div>
-
 </template>
 
-<script>
-export default {
-  name: 'cUserStatus',
-  props: {
-    usuario: {
-      type: Object,
-      default: () => { }
-    }
+<script setup>
+import { ref, computed } from 'vue'
+import { useUser } from '../composables/useUser'
+
+// Props
+const props = defineProps({
+  usuario: {
+    type: Object,
+    required: true
+  }
+})
+
+// Emits
+const emit = defineEmits(['update:usuario'])
+
+// Composables
+const { updateUserStatus } = useUser()
+
+// Estado
+const userStatus = ref(props.usuario.status)
+
+// Constantes
+const statusOptions = [
+  { 
+    label: 'Online',
+    value: 'online',
+    icon: 'mdi-account-check',
+    color: 'positive'
   },
-  computed: {
-    cStatus () {
-      const usuario = this.usuario
-      return this.statusOptions.find(s => s.value == usuario.status) || {}
+  { 
+    label: 'Offline',
+    value: 'offline',
+    icon: 'mdi-account-off',
+    color: 'negative'
+  }
+]
+
+// Computed
+const currentStatus = computed(() => 
+  statusOptions.find(s => s.value === userStatus.value) || {}
+)
+
+// Métodos
+const updateStatus = async (status) => {
+  try {
+    const updatedUser = {
+      ...props.usuario,
+      status
     }
-  },
-  data () {
-    return {
-      status: {},
-      statusOptions: [
-        { label: 'Online', value: 'online', icon: 'mdi-account-check', color: 'positive' },
-        { label: 'Offline', value: 'offline', icon: 'mdi-account-off', color: 'negative' }
-      ]
-    }
-  },
-  methods: {
-    updateStatus (status) {
-      const usuario = { ...this.usuario, status }
-      localStorage.setItem('usuario', JSON.stringify(usuario))
-      this.$emit('update:usuario', usuario)
-      console.log('usuario', usuario)
-    }
+
+    // Atualizar localStorage
+    localStorage.setItem('usuario', JSON.stringify(updatedUser))
+    
+    // Atualizar estado global do usuário
+    await updateUserStatus(status)
+    
+    // Emitir evento para o componente pai
+    emit('update:usuario', updatedUser)
+    
+    userStatus.value = status
+  } catch (error) {
+    console.error('Erro ao atualizar status:', error)
   }
 }
 </script>
 
-<style>
+<style scoped>
+/* Adicione estilos específicos aqui se necessário */
 </style>

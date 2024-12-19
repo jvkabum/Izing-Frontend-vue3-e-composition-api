@@ -2,19 +2,36 @@
   <div class="text-caption text-center bg-grey-1 q-pa-sm">
     Versão Sistema:
     <q-badge align="middle" color="primary">
-      <a :href="github" target="_blank">v{{ version }}</a>
+      <a 
+        target="_blank" 
+        :href="packageInfo.repository?.url || '#'" 
+        class="text-white text-decoration-none"
+      >
+        v{{ packageInfo.version }}
+      </a>
     </q-badge>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import packageInfo from '@/../package.json'
+import packageJson from '../../package.json'
 
-const version = computed(() => packageInfo.version)
-const github = computed(() => packageInfo.github)
+// Estado
+const packageInfo = computed(() => ({
+  version: packageJson.version,
+  repository: {
+    url: packageJson.repository?.url || 'https://github.com/jvkabum/Izingflow'
+  }
+}))
 </script>
 
-<style>
+<style scoped>
+.text-decoration-none {
+  text-decoration: none;
+}
 
+.text-white {
+  color: white;
+}
 </style>

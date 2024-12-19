@@ -1,16 +1,16 @@
 import { ref } from 'vue'
 import { api } from '@/services/api'
 
-export function useAutoReply() {
-  const autoReplies = ref([])
+export function useQuickMessages() {
+  const messages = ref([])
   const loading = ref(false)
   const error = ref(null)
 
-  const fetchAutoReplies = async () => {
+  const fetchMessages = async () => {
     loading.value = true
     try {
-      const { data } = await api.get('/auto-replies')
-      autoReplies.value = data
+      const { data } = await api.get('/quick-messages')
+      messages.value = data
       return data
     } catch (err) {
       error.value = err.message
@@ -20,11 +20,11 @@ export function useAutoReply() {
     }
   }
 
-  const createAutoReply = async (autoReplyData) => {
+  const createMessage = async (messageData) => {
     loading.value = true
     try {
-      const { data } = await api.post('/auto-replies', autoReplyData)
-      autoReplies.value.push(data)
+      const { data } = await api.post('/quick-messages', messageData)
+      messages.value.push(data)
       return data
     } catch (err) {
       error.value = err.message
@@ -34,13 +34,13 @@ export function useAutoReply() {
     }
   }
 
-  const updateAutoReply = async (id, autoReplyData) => {
+  const updateMessage = async (id, messageData) => {
     loading.value = true
     try {
-      const { data } = await api.put(`/auto-replies/${id}`, autoReplyData)
-      const index = autoReplies.value.findIndex(ar => ar.id === id)
+      const { data } = await api.put(`/quick-messages/${id}`, messageData)
+      const index = messages.value.findIndex(m => m.id === id)
       if (index !== -1) {
-        autoReplies.value[index] = data
+        messages.value[index] = data
       }
       return data
     } catch (err) {
@@ -51,11 +51,11 @@ export function useAutoReply() {
     }
   }
 
-  const deleteAutoReply = async (id) => {
+  const deleteMessage = async (id) => {
     loading.value = true
     try {
-      await api.delete(`/auto-replies/${id}`)
-      autoReplies.value = autoReplies.value.filter(ar => ar.id !== id)
+      await api.delete(`/quick-messages/${id}`)
+      messages.value = messages.value.filter(m => m.id !== id)
     } catch (err) {
       error.value = err.message
       throw err
@@ -65,12 +65,12 @@ export function useAutoReply() {
   }
 
   return {
-    autoReplies,
+    messages,
     loading,
     error,
-    fetchAutoReplies,
-    createAutoReply,
-    updateAutoReply,
-    deleteAutoReply
+    fetchMessages,
+    createMessage,
+    updateMessage,
+    deleteMessage
   }
 } 

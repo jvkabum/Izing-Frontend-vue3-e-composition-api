@@ -1,16 +1,16 @@
 import { ref } from 'vue'
 import { api } from '@/services/api'
 
-export function useAutoReply() {
-  const autoReplies = ref([])
+export function useContactGroups() {
+  const groups = ref([])
   const loading = ref(false)
   const error = ref(null)
 
-  const fetchAutoReplies = async () => {
+  const fetchGroups = async () => {
     loading.value = true
     try {
-      const { data } = await api.get('/auto-replies')
-      autoReplies.value = data
+      const { data } = await api.get('/contact-groups')
+      groups.value = data
       return data
     } catch (err) {
       error.value = err.message
@@ -20,11 +20,11 @@ export function useAutoReply() {
     }
   }
 
-  const createAutoReply = async (autoReplyData) => {
+  const createGroup = async (groupData) => {
     loading.value = true
     try {
-      const { data } = await api.post('/auto-replies', autoReplyData)
-      autoReplies.value.push(data)
+      const { data } = await api.post('/contact-groups', groupData)
+      groups.value.push(data)
       return data
     } catch (err) {
       error.value = err.message
@@ -34,13 +34,13 @@ export function useAutoReply() {
     }
   }
 
-  const updateAutoReply = async (id, autoReplyData) => {
+  const updateGroup = async (id, groupData) => {
     loading.value = true
     try {
-      const { data } = await api.put(`/auto-replies/${id}`, autoReplyData)
-      const index = autoReplies.value.findIndex(ar => ar.id === id)
+      const { data } = await api.put(`/contact-groups/${id}`, groupData)
+      const index = groups.value.findIndex(g => g.id === id)
       if (index !== -1) {
-        autoReplies.value[index] = data
+        groups.value[index] = data
       }
       return data
     } catch (err) {
@@ -51,11 +51,11 @@ export function useAutoReply() {
     }
   }
 
-  const deleteAutoReply = async (id) => {
+  const deleteGroup = async (id) => {
     loading.value = true
     try {
-      await api.delete(`/auto-replies/${id}`)
-      autoReplies.value = autoReplies.value.filter(ar => ar.id !== id)
+      await api.delete(`/contact-groups/${id}`)
+      groups.value = groups.value.filter(g => g.id !== id)
     } catch (err) {
       error.value = err.message
       throw err
@@ -65,12 +65,12 @@ export function useAutoReply() {
   }
 
   return {
-    autoReplies,
+    groups,
     loading,
     error,
-    fetchAutoReplies,
-    createAutoReply,
-    updateAutoReply,
-    deleteAutoReply
+    fetchGroups,
+    createGroup,
+    updateGroup,
+    deleteGroup
   }
 } 

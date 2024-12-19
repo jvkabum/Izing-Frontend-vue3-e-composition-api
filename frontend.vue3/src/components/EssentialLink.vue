@@ -9,12 +9,14 @@
     :class="{'text-negative text-bolder': color === 'negative'}"
   >
     <q-item-section v-if="icon" avatar>
-      <q-icon :name="color === 'negative' ? 'mdi-cellphone-nfc-off' : icon" />
+      <q-icon :name="iconName" />
     </q-item-section>
 
     <q-item-section>
       <q-item-label>{{ title }}</q-item-label>
-      <q-item-label caption></q-item-label>
+      <q-item-label caption v-if="caption">
+        {{ caption }}
+      </q-item-label>
     </q-item-section>
   </q-item>
 </template>
@@ -23,6 +25,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
+// Props
 const props = defineProps({
   title: {
     type: String,
@@ -46,13 +49,20 @@ const props = defineProps({
   }
 })
 
+// Composables
 const router = useRouter()
 const route = useRoute()
 
+// Computed
 const currentRoute = computed(() => route.name)
 
+const iconName = computed(() => 
+  props.color === 'negative' ? 'mdi-cellphone-nfc-off' : props.icon
+)
+
+// Methods
 const handleClick = () => {
-  if (routeName !== currentRoute.value) {
+  if (props.routeName !== currentRoute.value) {
     router.push({ name: props.routeName })
   }
 }
