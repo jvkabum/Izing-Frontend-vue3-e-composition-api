@@ -1,78 +1,185 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useQuasar } from 'quasar'
 import { api } from '../services/api'
-import { useNotification } from './useNotification'
+import { useSocket } from './useSocket'
+import { useAuth } from './useAuth'
 
 export function useContacts() {
+  // Composables
+  const $q = useQuasar()
+  const { socket } = useSocket()
+  const { isAdmin } = useAuth()
+
+  // Estado
   const contacts = ref([])
   const loading = ref(false)
   const error = ref(null)
-  const { notify } = useNotification()
+  const searchTerm = ref('')
+  const filters = ref({
+    tags: [],
+    queues: [],
+    status: 'all',
+    assignedUser: null,
+    dateRange: null
+  })
+  const pagination = ref({
+    page: 1,
+    limit: 20,
+    total: 0,
+    hasMore: true
+  })
 
-  const loadContacts = async (newContacts = []) => {
-    try {
-      // Atualiza contatos existentes e adiciona novos
-      const updatedContacts = [...contacts.value]
-      const newContactsList = []
+  // Computed
+  const filteredContacts = computed(() => {
+    let result = [...contacts.value]
 
-      newContacts.forEach(contact => {
-        const contactIndex = updatedContacts.findIndex(c => c.id === contact.id)
-        if (contactIndex !== -1) {
-          updatedContacts[contactIndex] = contact
-        } else {
-          newContactsList.push(contact)
-        }
-      })
+    // Busca
+    if (searchTerm.value) {
+      const search = searchTerm.value.toLowerCase()
+      result = result.filter(contact => 
+        contact.name?.toLowerCase().includes(search) ||
+        contact.number?.includes(search) ||
+        contact.email?.toLowerCase().includes(search)
+      )
+    }
 
-      contacts.value = [...updatedContacts, ...newContactsList]
-    } catch (err) {
-      error.value = err.message
-      notify({
-        type: 'negative',
-        message: 'Erro ao carregar contatos',
-        position: 'top'
+    // Tags
+    if (filters.value.tags.length) {
+      result = result.filter(contact => 
+        contact.tags?.some(tag => 
+          filters.value.tags.includes(tag.id)
+        )
+      )
+    }
+
+    // Filas
+    if (filters.value.queues.length) {
+      result = result.filter(contact => 
+        contact.queues?.some(queue => 
+          filters.value.queues.includes(queue.id)
+        )
+      )
+    }
+
+    // Status
+    if (filters.value.status !== 'all') {
+      result = result.filter(contact => 
+        contact.status === filters.value.status
+      )
+    }
+
+    // Usuário atribuído
+    if (filters.value.assignedUser) {
+      result = result.filter(contact => 
+        contact.assignedUser?.id === filters.value.assignedUser
+      )
+    }
+
+    // Data
+    if (filters.value.dateRange) {
+      const [start, end] = filters.value.dateRange
+      result = result.filter(contact => {
+        const date = new Date(contact.createdAt)
+        return date >= start && date <= end
       })
     }
-  }
 
-  const fetchContacts = async (params = {}) => {
-    loading.value = true
+    return result
+  })
+
+  const groupedContacts = computed(() => {
+    const groups = {}
+    filteredContacts.value.forEach(contact => {
+      const firstLetter = contact.name?.[0]?.toUpperCase() || '#'
+      if (!groups[firstLetter]) {
+        groups[firstLetter] = []
+      }
+      groups[firstLetter].push(contact)
+    })
+    return groups
+  })
+
+  // Métodos
+  const loadContacts = async (params = {}) => {
     try {
-      const { data } = await api.get('/contacts', { params })
-      await loadContacts(data)
+      loading.value = true
+      error.value = null
+
+      const searchParams = {
+        page: pagination.value.page,
+        limit: pagination.value.limit,
+        ...filters.value,
+        ...params
+      }
+
+      const { data } = await api.get('/contacts', { params: searchParams })
+      
+      if (searchParams.page === 1) {
+        contacts.value = data.contacts
+      } else {
+        contacts.value = [...contacts.value, ...data.contacts]
+      }
+
+      pagination.value = {
+        ...pagination.value,
+        total: data.count,
+        hasMore: data.hasMore
+      }
+
       return data
     } catch (err) {
-      error.value = err.message
-      notify({
-        type: 'negative',
-        message: 'Erro ao buscar contatos',
-        position: 'top'
-      })
+      error.value = 'Erro ao carregar contatos'
+      console.error('Erro ao carregar contatos:', err)
       throw err
     } finally {
       loading.value = false
     }
   }
 
-  const updateContact = async (contactData) => {
-    loading.value = true
+  const createContact = async (contactData) => {
     try {
-      const { data } = await api.put(`/contacts/${contactData.id}`, contactData)
-      const contactIndex = contacts.value.findIndex(c => c.id === contactData.id)
-      
-      if (contactIndex !== -1) {
-        contacts.value[contactIndex] = data
-      } else {
-        contacts.value.unshift(data)
-      }
-      
-      return data
-    } catch (err) {
-      error.value = err.message
-      notify({
-        type: 'negative',
-        message: 'Erro ao atualizar contato',
+      loading.value = true
+      error.value = null
+
+      const { data } = await api.post('/contacts', contactData)
+      contacts.value.unshift(data)
+
+      $q.notify({
+        type: 'positive',
+        message: 'Contato criado com sucesso',
         position: 'top'
       })
+
+      return data
+    } catch (err) {
+      error.value = 'Erro ao criar contato'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const updateContact = async (contactId, contactData) => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data } = await api.put(`/contacts/${contactId}`, contactData)
+      
+      const index = contacts.value.findIndex(c => c.id === contactId)
+      if (index !== -1) {
+        contacts.value[index] = data
+      }
+
+      $q.notify({
+        type: 'positive',
+        message: 'Contato atualizado com sucesso',
+        position: 'top'
+      })
+
+      return data
+    } catch (err) {
+      error.value = 'Erro ao atualizar contato'
       throw err
     } finally {
       loading.value = false
@@ -80,42 +187,158 @@ export function useContacts() {
   }
 
   const deleteContact = async (contactId) => {
-    loading.value = true
     try {
+      loading.value = true
+      error.value = null
+
       await api.delete(`/contacts/${contactId}`)
-      const contactIndex = contacts.value.findIndex(c => c.id === contactId)
-      if (contactIndex !== -1) {
-        contacts.value.splice(contactIndex, 1)
-      }
-    } catch (err) {
-      error.value = err.message
-      notify({
-        type: 'negative',
-        message: 'Erro ao excluir contato',
+      contacts.value = contacts.value.filter(c => c.id !== contactId)
+
+      $q.notify({
+        type: 'positive',
+        message: 'Contato removido com sucesso',
         position: 'top'
       })
+
+      return true
+    } catch (err) {
+      error.value = 'Erro ao remover contato'
       throw err
     } finally {
       loading.value = false
     }
   }
 
-  const resetContacts = () => {
-    contacts.value = []
-    error.value = null
+  const importContacts = async (file, options = {}) => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const formData = new FormData()
+      formData.append('file', file)
+      Object.entries(options).forEach(([key, value]) => {
+        formData.append(key, value)
+      })
+
+      const { data } = await api.post('/contacts/import', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      $q.notify({
+        type: 'positive',
+        message: `${data.imported} contatos importados com sucesso`,
+        position: 'top'
+      })
+
+      return data
+    } catch (err) {
+      error.value = 'Erro ao importar contatos'
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
+
+  const exportContacts = async (format = 'csv') => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data } = await api.get('/contacts/export', {
+        params: { format },
+        responseType: 'blob'
+      })
+
+      const url = window.URL.createObjectURL(data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `contatos.${format}`
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      return true
+    } catch (err) {
+      error.value = 'Erro ao exportar contatos'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const updateFilters = (newFilters) => {
+    filters.value = {
+      ...filters.value,
+      ...newFilters
+    }
+    pagination.value.page = 1
+    return loadContacts()
+  }
+
+  const loadMore = () => {
+    if (!pagination.value.hasMore || loading.value) return
+
+    pagination.value.page++
+    return loadContacts()
+  }
+
+  // Socket handlers
+  const handleContactUpdate = (data) => {
+    const index = contacts.value.findIndex(c => c.id === data.id)
+    if (index !== -1) {
+      contacts.value[index] = data
+    } else {
+      contacts.value.unshift(data)
+    }
+  }
+
+  const handleContactDelete = (contactId) => {
+    contacts.value = contacts.value.filter(c => c.id !== contactId)
+  }
+
+  // Socket listeners
+  const setupSocketListeners = () => {
+    socket.value?.on('contact:update', handleContactUpdate)
+    socket.value?.on('contact:delete', handleContactDelete)
+  }
+
+  const removeSocketListeners = () => {
+    socket.value?.off('contact:update', handleContactUpdate)
+    socket.value?.off('contact:delete', handleContactDelete)
+  }
+
+  // Lifecycle
+  onMounted(() => {
+    setupSocketListeners()
+    loadContacts()
+  })
+
+  onUnmounted(() => {
+    removeSocketListeners()
+  })
 
   return {
     // Estado
     contacts,
     loading,
     error,
+    searchTerm,
+    filters,
+    pagination,
+
+    // Computed
+    filteredContacts,
+    groupedContacts,
 
     // Métodos
     loadContacts,
-    fetchContacts,
+    createContact,
     updateContact,
     deleteContact,
-    resetContacts
+    importContacts,
+    exportContacts,
+    updateFilters,
+    loadMore
   }
 }
